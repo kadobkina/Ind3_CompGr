@@ -181,21 +181,6 @@ void setMat4(unsigned int program, const std::string& name, const glm::mat4& mat
     glUniformMatrix4fv(glGetUniformLocation(program, name.c_str()), 1, GL_FALSE, &mat[0][0]);
 }
 
-void setVec3(unsigned int program, const std::string& name, float x, float y, float z) 
-{
-    glUniform3f(glGetUniformLocation(program, name.c_str()), x, y, z);
-}
-
-void setVec3(unsigned int program, const std::string& name, const glm::vec3& value)
-{
-    glUniform3fv(glGetUniformLocation(program, name.c_str()), 1, &value[0]);
-}
-
-void setFloat(unsigned int program, const std::string& name, float value)
-{
-    glUniform1f(glGetUniformLocation(program, name.c_str()), value);
-}
-
 void InitShader() {
     // Создаем вершинный шейдер
     GLuint vShader = glCreateShader(GL_VERTEX_SHADER);
@@ -252,6 +237,7 @@ void InitShader() {
         return;
     }
 
+    // смещение света
     glUniform1f(Unif_posx, xpos);
     glUniform1f(Unif_posy, ypos);
     glUniform1f(Unif_posz, zpos);
