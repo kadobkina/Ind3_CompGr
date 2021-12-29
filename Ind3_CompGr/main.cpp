@@ -14,6 +14,10 @@
 // ID шейдерной программы
 GLuint Program;
 
+GLuint Unif_posx;
+GLuint Unif_posy;
+GLuint Unif_posz;
+
 // размер окна
 int width = 800, height = 600;
 
@@ -23,6 +27,9 @@ Camera camera(glm::vec3(0.0f, 20.0f, 30.0f));
 // сцена с объектами
 std::vector <GameObject> gameObjects;
 
+// источник света
+float lpos[4] = { 0.0f,0.0f,0.0f,1.0f };
+
 // Исходный код вершинного шейдера
 const char* VertexShaderSource = R"(
     #version 330 core
@@ -30,7 +37,15 @@ const char* VertexShaderSource = R"(
     layout (location = 0) in vec3 vertCoord;
     layout (location = 1) in vec3 normal;
     layout (location = 2) in vec2 textCoord;
+
     out vec2 tCoord;
+    out vec3 lightp;
+    out vec3 vnormal;
+    out vec4 vPosition;
+
+    uniform float xpos;
+    uniform float ypos;
+    uniform float zpos;
 
     uniform mat4 object;
     uniform mat4 view;
@@ -38,8 +53,31 @@ const char* VertexShaderSource = R"(
 
     void main()
     {
-      tCoord = textCoord;    
+      tCoord = textCoord; 
+
+mat3 aff=mat3(
+1, 0, 0,
+0, cos(1), -sin(1),
+0, sin(1), cos(1)
+) * mat3(
+cos(1), 0, sin(1),
+0, 1, 0,
+-sin(1), 0, cos(1)
+)* mat3(
+            cos(1), sin(1),0,
+            -sin(1),cos(1) , 0,
+            0, 0, 1
+        ); 
+
+      vec3 newNormale = mat3(transpose(inverse(aff))) *  normal;
+      vec3 lposition=vec3(xpos,ypos,zpos);
+      vec3 temp=lposition; 
+ 
       gl_Position = proj * view * object * vec4(vertCoord, 1.0);
+
+      vPosition=proj * view * object * vec4(vertCoord, 1.0);
+      vnormal=newNormale;
+      lightp=  temp-vertCoord;
     }
 )";
 
@@ -47,26 +85,65 @@ const char* VertexShaderSource = R"(
 const char* FragShaderSource = R"(
     #version 330 core
 
+    in vec3 vCoord;  
+    in vec3 vnormal;  
+    in vec3 lightp;
     in vec2 tCoord;
+
     out vec4 color;
+    const vec4 diffColor = vec4 ( 0.9, 0.9, 0.9, 1.0 );
 
     uniform sampler2D ourTexture;
 
     void main()
     {    
-       color = texture(ourTexture, tCoord);
+       vec3 n2   = normalize ( vnormal );
+       vec3 l2   = normalize ( lightp );
+       vec4 diff = diffColor * max ( dot ( n2, l2 ), 0.0 );
+       color = texture(ourTexture, tCoord) * diff;
     }
 )";
+
+//float xpos = 10.0f;
+//float ypos = 30.0f;
+//float zpos = 1.0f;
+float xpos = 11.0f;
+float ypos = 14.0f;
+float zpos = -2.0f;
+void ChangePos(float x, float y, float z)
+{
+    if (xpos<1.0f || xpos > -0.9f)
+        xpos += x;
+    if (ypos < 1.0f || ypos > -0.9f)
+        ypos += y;
+    if (zpos < 1.0f || zpos > -0.9f)
+        zpos += z;
+
+}
 
 // Обработка всех событий ввода: запрос GLFW о нажатии/отпускании кнопки мыши в данном кадре и соответствующая обработка данных событий
 void processInput(GLFWwindow* window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS)
         camera.position[0] -= 1.0;
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS)
         camera.position[0] += 1.0;
+
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        ChangePos(-1.1f, 0.0f, 0.0f);
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        ChangePos(1.1f, 0.0f, 0.0f);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        ChangePos(0.0f, 1.1f, 0.0f);
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        ChangePos(0.0f, -1.1f, 0.0f);
+    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+        ChangePos(0.0f, 0.0f, -1.1f);
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+        ChangePos(0.0f, 0.0f, 1.1f);
 }
 
 // Проверка ошибок OpenGL, если есть то вывод в консоль тип ошибки
@@ -104,6 +181,21 @@ void setMat4(unsigned int program, const std::string& name, const glm::mat4& mat
     glUniformMatrix4fv(glGetUniformLocation(program, name.c_str()), 1, GL_FALSE, &mat[0][0]);
 }
 
+void setVec3(unsigned int program, const std::string& name, float x, float y, float z) 
+{
+    glUniform3f(glGetUniformLocation(program, name.c_str()), x, y, z);
+}
+
+void setVec3(unsigned int program, const std::string& name, const glm::vec3& value)
+{
+    glUniform3fv(glGetUniformLocation(program, name.c_str()), 1, &value[0]);
+}
+
+void setFloat(unsigned int program, const std::string& name, float value)
+{
+    glUniform1f(glGetUniformLocation(program, name.c_str()), value);
+}
+
 void InitShader() {
     // Создаем вершинный шейдер
     GLuint vShader = glCreateShader(GL_VERTEX_SHADER);
@@ -137,6 +229,32 @@ void InitShader() {
         return;
     }
     checkOpenGLerror();
+
+    const char* unif_name = "xpos";
+    Unif_posx = glGetUniformLocation(Program, unif_name);
+    if (Unif_posx == -1)
+    {
+        std::cout << "could not bind uniform " << unif_name << std::endl;
+        return;
+    }
+    unif_name = "ypos";
+    Unif_posy = glGetUniformLocation(Program, unif_name);
+    if (Unif_posy == -1)
+    {
+        std::cout << "could not bind uniform " << unif_name << std::endl;
+        return;
+    }
+    unif_name = "zpos";
+    Unif_posz = glGetUniformLocation(Program, unif_name);
+    if (Unif_posz == -1)
+    {
+        std::cout << "could not bind uniform " << unif_name << std::endl;
+        return;
+    }
+
+    glUniform1f(Unif_posx, xpos);
+    glUniform1f(Unif_posy, ypos);
+    glUniform1f(Unif_posz, zpos);
 
     // После того, как мы связали шейдеры с нашей программой, удаляем их, т.к. они нам больше не нужны
     glDeleteShader(vShader);
@@ -178,6 +296,7 @@ void InitObjects()
     gameObjects.push_back(car);
     gameObjects.push_back(road);
     gameObjects.push_back(grass);
+
 }
 
 void Init()
@@ -220,13 +339,14 @@ int main()
 
         // рендеринг
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // устанавливаем шейдерную программу текущей
         glUseProgram(Program);
 
         // инициализируем всякие штуки
         Init();
+
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         // рисуем объекты
         for (auto go : gameObjects)
